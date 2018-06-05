@@ -195,11 +195,11 @@ def main():
         print('You may need to create this directory before running this program.')
 
     # TODO: Finalize performance improvements.
-    distribution = tf.contrib.distribute.MirroredStrategy() # Mirrors the model
+    # distribution = tf.contrib.distribute.MirroredStrategy() # Mirrors the model
     # accross all available GPUs.
 
     config = tf.estimator.RunConfig(
-        train_distribute=distribution,
+        # train_distribute=distribution,
         keep_checkpoint_max=2,
         log_step_count_steps=5
         )
