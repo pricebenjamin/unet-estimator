@@ -241,8 +241,8 @@ def main():
         if i % 10 == 0: print('  storing prediction %d' % i)
         image_list.append(prediction['image'])
         pred_mask_list.append(prediction['pred_mask'])
-    np.save('eval_images.npy', np.asarray(image_list))
-    np.save('eval_pred_masks.npy', np.asarray(pred_mask_list))
+    np.save('big_eval_images.npy', np.asarray(image_list))
+    np.save('big_eval_pred_masks.npy', np.asarray(pred_mask_list))
 
 if __name__=="__main__":
     tf.logging.set_verbosity(tf.logging.INFO)
