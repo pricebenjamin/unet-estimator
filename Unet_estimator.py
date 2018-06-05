@@ -30,7 +30,7 @@ class Unet_Model():
                     padding="SAME",
                     activation=tf.nn.relu)
 
-            # conv = tf.layers.batch_normalization(conv)
+            conv = tf.layers.batch_normalization(conv)
             self.c_layer.append(conv)  
             size = conv.get_shape().as_list()
             self.c_size.append(size)
@@ -46,7 +46,7 @@ class Unet_Model():
                 padding="SAME",
                 activation=tf.nn.relu)
 
-        # conv = tf.layers.batch_normalization(conv)
+        conv = tf.layers.batch_normalization(conv)
         print('Bottom block last layer size {}'.format(conv.get_shape().as_list()))
 
         # Expansion
@@ -69,7 +69,7 @@ class Unet_Model():
                     padding="SAME",
                     activation=tf.nn.relu)
 
-            # conv = tf.layers.batch_normalization(conv)
+            conv = tf.layers.batch_normalization(conv)
             print('Decoder block {} last layer size {}'.format(b + 1, conv.get_shape().as_list()))
 
         logits = tf.layers.conv2d(
@@ -108,9 +108,12 @@ def model_fn(features, labels, mode, params):
         #loss = tf.losses.softmax_cross_entropy(labels=masks, logits=logits)
         hot = tf.one_hot(masks, 2)
         loss = tf.losses.softmax_cross_entropy(logits=logits, onehot_labels=hot)
-        accuracy = tf.metrics.accuracy(
-            labels=masks, 
-            predictions=tf.argmax(logits, axis=-1))
+        
+        # Metrics are not yet supported during training when using Mirrored Strategy.
+        # See: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/contrib/distribute/README.md
+        # accuracy = tf.metrics.accuracy(
+        #     labels=masks, 
+        #     predictions=tf.argmax(logits, axis=-1))
 
         return tf.estimator.EstimatorSpec(
             mode=TRAIN,
@@ -164,17 +167,25 @@ def input_fn(filenames, image_shape, train, batch_size=1, buffer_size=2048):
     dataset = tf.data.TFRecordDataset(
         filenames=filenames, 
         compression_type="GZIP", # Full resolution images have been compressed.
-        num_parallel_reads=16)
-    dataset = dataset.map(lambda record: parser(record, image_shape))
+        num_parallel_reads=8)
+
+    # dataset = dataset.map(lambda record: parser(record, image_shape))
+    dataset = dataset.apply(tf.contrib.data.map_and_batch(
+        lambda record: parser(record, image_shape),
+        batch_size=1,
+        num_parallel_batches=4))
 
     if train:
         dataset = dataset.shuffle(buffer_size=buffer_size)
-        num_repeat = 3
-    else:
-        num_repeat = 1
+    #     num_repeat = 1
+    # else:
+    #     num_repeat = 1
 
-    dataset = dataset.repeat(num_repeat)
-    dataset = dataset.batch(batch_size)
+    dataset = dataset.prefetch(buffer_size=None) # Let TF detect the optimal buffer_size
+    # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/contrib/distribute/README.md
+
+    # dataset = dataset.repeat(num_repeat)
+    # dataset = dataset.batch(batch_size)
     return dataset # Expected by estimator's `train` method.
 
 
@@ -185,9 +196,9 @@ def main():
     # Define parameters
     epochs = 200
     epochs_between_evals = 2
-    model_dir = os.path.expanduser('~/.temp/unet-full-resolution')
-    train_tfrecord = 'full_resolution_train.tfrecords'
-    eval_tfrecord  = 'full_resolution_eval.tfrecords'
+    model_dir = os.path.expanduser('~/.temp/unet-big-full-resolution')
+    train_tfrecord = '/mnt/lfs2/pric7208/u-net/linh/BigData/Data/big_full_resolution_train.tfrecords'
+    eval_tfrecord  = '/mnt/lfs2/pric7208/u-net/linh/BigData/Data/big_full_resolution_eval.tfrecords'
     image_shape = [1280, 1920]
 
     if not os.path.exists(model_dir):
@@ -195,11 +206,11 @@ def main():
         print('You may need to create this directory before running this program.')
 
     # TODO: Finalize performance improvements.
-    # distribution = tf.contrib.distribute.MirroredStrategy() # Mirrors the model
+    distribution = tf.contrib.distribute.MirroredStrategy() # Mirrors the model
     # accross all available GPUs.
 
     config = tf.estimator.RunConfig(
-        # train_distribute=distribution,
+        train_distribute=distribution,
         keep_checkpoint_max=2,
         log_step_count_steps=5
         )
