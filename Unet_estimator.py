@@ -160,7 +160,7 @@ def parser(record, image_shape): # TODO: determine how/where to define `n`; part
 # TODO: Optimize the input_fn to reduce GPU idle time.
 # This will probably require two separate input functions--one for
 # training and the other for evaluation.
-def input_fn(filenames, image_shape, train, batch_size=2, buffer_size=2048):
+def input_fn(filenames, image_shape, train, batch_size=1, buffer_size=2048):
     dataset = tf.data.TFRecordDataset(filenames=filenames)
     dataset = dataset.map(lambda record: parser(record, image_shape))
 
@@ -180,25 +180,25 @@ def main():
     # is using the correct parameters. (Look at DS Comp code.)
 
     # Define parameters
-    epochs = 100 
+    epochs = 200
     epochs_between_evals = 2
-    model_dir = os.path.expanduser('~/.temp/unet')
-    train_tfrecord = 'train_512.tfrecords'
-    eval_tfrecord  = 'val_512.tfrecords'
-    image_shape = [512, 512]
+    model_dir = os.path.expanduser('~/.temp/unet-full-resolution')
+    train_tfrecord = 'full_resolution_train.tfrecords'
+    eval_tfrecord  = 'full_resolution_eval.tfrecords'
+    image_shape = [1280, 1920]
 
     if not os.path.exists(model_dir):
         print('Model directory `%s` does not exist.' % model_dir)
         print('You may need to create this directory before running this program.')
 
     # TODO: Finalize performance improvements.
-    # distribution = tf.contrib.distribute.MirroredStrategy() # Mirrors the model
+    distribution = tf.contrib.distribute.MirroredStrategy() # Mirrors the model
     # accross all available GPUs.
 
     config = tf.estimator.RunConfig(
-        # train_distribute=distribution,
+        train_distribute=distribution,
         keep_checkpoint_max=2,
-        log_step_count_steps=10
+        log_step_count_steps=5
         )
 
     # Initialize the Estimator
