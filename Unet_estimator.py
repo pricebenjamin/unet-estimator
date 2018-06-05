@@ -143,15 +143,15 @@ def parser(record, image_shape): # TODO: determine how/where to define `n`; part
     '''
 
     keys_to_features = {
-        "original":  tf.FixedLenFeature([], tf.string),
-        "segmented": tf.FixedLenFeature([], tf.string)
+        "image":  tf.FixedLenFeature([], tf.string),
+        "mask": tf.FixedLenFeature([], tf.string)
     }
     parsed = tf.parse_single_example(record, keys_to_features)
-    original = tf.decode_raw(parsed["original"], tf.uint8)
+    original = tf.decode_raw(parsed["image"], tf.uint8)
     original = tf.cast(original, tf.float32)
     original = tf.reshape(original, shape=[*image_shape, 3])
     
-    segmented = tf.decode_raw(parsed["segmented"], tf.uint8)
+    segmented = tf.decode_raw(parsed["mask"], tf.uint8)
     # segmented = tf.cast(segmented, tf.float32)
     segmented = tf.reshape(segmented, shape=image_shape)
 
@@ -161,7 +161,10 @@ def parser(record, image_shape): # TODO: determine how/where to define `n`; part
 # This will probably require two separate input functions--one for
 # training and the other for evaluation.
 def input_fn(filenames, image_shape, train, batch_size=1, buffer_size=2048):
-    dataset = tf.data.TFRecordDataset(filenames=filenames)
+    dataset = tf.data.TFRecordDataset(
+        filenames=filenames, 
+        compression_type="GZIP", # Full resolution images have been compressed.
+        num_parallel_reads=16)
     dataset = dataset.map(lambda record: parser(record, image_shape))
 
     if train:
