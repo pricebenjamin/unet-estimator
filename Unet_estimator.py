@@ -12,13 +12,13 @@ class Unet_Model():
         self.image_shape = params['image_shape']
         self.c_channels = [32, 64, 128, 256, 512]
         self.half_length = 4
-        self.e_channels = self.c_channels[-2: : -1]
+        self.e_channels = self.c_channels[-2: :-1]
 
         self.c_layer = []
         self.c_size = []
 
     def __call__(self, inputs, training):
-        conv = inputs # tf.placeholder(tf.float32, [None, 512, 512, 3])
+        conv = inputs
 
         # Contraction
         for b in range(4):
@@ -34,8 +34,9 @@ class Unet_Model():
             self.c_layer.append(conv)  
             size = conv.get_shape().as_list()
             self.c_size.append(size)
-            print('Encoder block {} last layer size {}'.format(b+1,conv.get_shape().as_list()))
-            conv = tf.layers.max_pooling2d(conv,[2,2],[2,2]) 
+            print('Encoder block {} last layer size {}'.format(
+                b + 1, conv.get_shape().as_list()))
+            conv = tf.layers.max_pooling2d(conv, [2, 2], [2, 2]) 
         
         conv = tf.layers.dropout(conv) # rate = 0.5 by default
         for l in range(2):
@@ -70,7 +71,8 @@ class Unet_Model():
                     activation=tf.nn.relu)
 
             conv = tf.layers.batch_normalization(conv)
-            print('Decoder block {} last layer size {}'.format(b + 1, conv.get_shape().as_list()))
+            print('Decoder block {} last layer size {}'.format(
+                b + 1, conv.get_shape().as_list()))
 
         logits = tf.layers.conv2d(
             inputs=conv,
@@ -80,7 +82,6 @@ class Unet_Model():
 
         print('Logits layer size {}'.format(logits.get_shape().as_list()))
         return logits
-
 
 def model_fn(features, labels, mode, params):
     PREDICT = tf.estimator.ModeKeys.PREDICT
@@ -102,12 +103,13 @@ def model_fn(features, labels, mode, params):
             mode=PREDICT,
             predictions=predictions)
 
+    y_hot = tf.one_hot(masks, 2)
+
     if mode == TRAIN:
         logits = model(images, training=True)
-        optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE) # TODO: Define
-        #loss = tf.losses.softmax_cross_entropy(labels=masks, logits=logits)
-        hot = tf.one_hot(masks, 2)
-        loss = tf.losses.softmax_cross_entropy(logits=logits, onehot_labels=hot)
+        optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE)
+        
+        loss = tf.losses.softmax_cross_entropy(logits=logits, onehot_labels=y_hot)
         
         # Metrics are not yet supported during training when using Mirrored Strategy.
         # See: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/contrib/distribute/README.md
@@ -122,8 +124,7 @@ def model_fn(features, labels, mode, params):
 
     assert mode == EVAL
     logits = model(images, training=False)
-    hot = tf.one_hot(masks, 2)
-    loss = tf.losses.softmax_cross_entropy(logits=logits, onehot_labels=hot)
+    loss = tf.losses.softmax_cross_entropy(logits=logits, onehot_labels=y_hot)
 
     return tf.estimator.EstimatorSpec(
         mode=EVAL,
@@ -133,8 +134,7 @@ def model_fn(features, labels, mode, params):
                 labels=masks, 
                 predictions=tf.argmax(logits, axis=-1)) # TODO: Verify
         })
-
-def parser(record, image_shape): # TODO: determine how/where to define `n`; partially solved
+def parser(record, image_shape):
     '''
     Defines how to convert each record in a TFRecords dataset into
     its original form.
@@ -163,62 +163,60 @@ def parser(record, image_shape): # TODO: determine how/where to define `n`; part
 # TODO: Optimize the input_fn to reduce GPU idle time.
 # This will probably require two separate input functions--one for
 # training and the other for evaluation.
-def input_fn(filenames, image_shape, train, batch_size=1, buffer_size=2048):
+def input_fn(filenames, image_shape, train, num_repeat=1, batch_size=1, buffer_size=2048):
     dataset = tf.data.TFRecordDataset(
         filenames=filenames, 
         compression_type="GZIP", # Full resolution images have been compressed.
         num_parallel_reads=8)
 
+    if train:
+        dataset.repeat(num_repeat)
+        dataset = dataset.shuffle(buffer_size=buffer_size)
+
     # dataset = dataset.map(lambda record: parser(record, image_shape))
     dataset = dataset.apply(tf.contrib.data.map_and_batch(
         lambda record: parser(record, image_shape),
-        batch_size=1,
+        batch_size=batch_size,
         num_parallel_batches=4))
-
-    if train:
-        dataset = dataset.shuffle(buffer_size=buffer_size)
-    #     num_repeat = 1
-    # else:
-    #     num_repeat = 1
 
     dataset = dataset.prefetch(buffer_size=None) # Let TF detect the optimal buffer_size
     # https://github.com/tensorflow/tensorflow/blob/master/tensorflow/contrib/distribute/README.md
 
-    # dataset = dataset.repeat(num_repeat)
-    # dataset = dataset.batch(batch_size)
     return dataset # Expected by estimator's `train` method.
-
 
 def main():
     # TODO: Check if GPUs are available and make sure our model
     # is using the correct parameters. (Look at DS Comp code.)
 
     # Define parameters
-    epochs = 200
-    epochs_between_evals = 2
+    epochs = 100
+    epochs_between_evals = 10 # When training on the full set of images, evaluation
+                              # becomes a very expensive process. Use sparingly.
+
+    # Define the location to save checkpoints:
     model_dir = os.path.expanduser('~/.temp/unet-big-full-resolution')
-    train_tfrecord = '/mnt/lfs2/pric7208/u-net/linh/BigData/Data/big_full_resolution_train.tfrecords'
-    eval_tfrecord  = '/mnt/lfs2/pric7208/u-net/linh/BigData/Data/big_full_resolution_eval.tfrecords'
+
+    # Specify where the training and evaluation files are located.
+    train_tfrecord = \
+        '/mnt/lfs2/pric7208/u-net/linh/BigData/Data/big_full_resolution_train.tfrecords'
+    eval_tfrecord  = \
+        '/mnt/lfs2/pric7208/u-net/linh/BigData/Data/big_full_resolution_eval.tfrecords'
+    
+    # Specify the shape of training and evaluation images.
     image_shape = [1280, 1920]
 
-    if not os.path.exists(model_dir):
-        print('Model directory `%s` does not exist.' % model_dir)
-        print('You may need to create this directory before running this program.')
-
     # TODO: Finalize performance improvements.
-    distribution = tf.contrib.distribute.MirroredStrategy() # Mirrors the model
-    # accross all available GPUs.
-
+    # Mirror the model accross all available GPUs using the mirrored distribution strategy.
+    distribution = tf.contrib.distribute.MirroredStrategy()
     config = tf.estimator.RunConfig(
         train_distribute=distribution,
         keep_checkpoint_max=2,
-        log_step_count_steps=5
-        )
+        log_step_count_steps=5)
 
     # Initialize the Estimator
     image_segmentor = tf.estimator.Estimator(
         model_dir=model_dir,
-        model_fn=model_fn, # TODO: Finalize
+        model_fn=model_fn,
         params={'image_shape': image_shape},
         config=config) # TODO: determine what parameters are needed
 
@@ -226,15 +224,23 @@ def main():
     for i in range(epochs // epochs_between_evals):
         print('\nEntering training epoch %d.\n' % (i * epochs_between_evals))
         image_segmentor.train(
-            input_fn=lambda: input_fn(train_tfrecord, image_shape, train=True)) # TODO
+            # input_fn is expected to take no arguments
+            input_fn=lambda: input_fn(
+                train_tfrecord,
+                image_shape,
+                train=True,
+                num_repeat=epochs_between_evals))
 
         results = image_segmentor.evaluate(
-            input_fn=lambda: input_fn(eval_tfrecord, image_shape, train=False)) # TODO
+            input_fn=lambda: input_fn(
+                eval_tfrecord,
+                image_shape,
+                train=False))
         print('\nEvaluation results:\n%s\n' % results)
 
     print('Computing predictions...')
     predictions = image_segmentor.predict(
-        input_fn=lambda: input_fn(eval_tfrecord, image_shape, train=False)) # TODO
+        input_fn=lambda: input_fn(eval_tfrecord, image_shape, train=False))
     image_list = []
     pred_mask_list = []
     for i, prediction in enumerate(predictions):
