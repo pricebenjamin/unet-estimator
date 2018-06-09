@@ -157,7 +157,7 @@ class Unet_Model():
                 # Apply the layer to the inputs
                 conv = layer(inputs=conv)
 
-           print('Decoder block {} last layer size {}'.format(
+            print('Decoder block {} last layer size {}'.format(
                 up_conv_op + 1, conv.get_shape().as_list()))
 
         logits = tf.layers.conv2d(
