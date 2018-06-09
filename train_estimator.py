@@ -17,15 +17,15 @@ epochs_between_evals = 2 # When training on the full set of images, evaluation
 
 # Define the location to save checkpoints:
 # model_dir = os.path.expanduser('~/.temp/unet-big-full-resolution')
-model_dir = os.path.expanduser('~/.temp/unet-small-full-resolution')
+model_dir = os.path.expanduser('~/.temp/unet-full-resolution-latest')
 
 # Specify where the training and evaluation files are located.
 train_tfrecord = \
-    '/mnt/lfs2/pric7208/repos/unet-estimator/small_full_resolution_train.tfrecords'
-    # '/mnt/lfs2/pric7208/u-net/linh/BigData/Data/big_full_resolution_train.tfrecords'
+    '/mnt/lfs2/pric7208/u-net/linh/BigData/Data/big_full_resolution_train.tfrecords'
+    # '/mnt/lfs2/pric7208/repos/unet-estimator/small_full_resolution_train.tfrecords'
 eval_tfrecord  = \
-    '/mnt/lfs2/pric7208/repos/unet-estimator/small_full_resolution_eval.tfrecords'
-    # '/mnt/lfs2/pric7208/u-net/linh/BigData/Data/big_full_resolution_eval.tfrecords'
+    '/mnt/lfs2/pric7208/u-net/linh/BigData/Data/big_full_resolution_eval.tfrecords'
+    # '/mnt/lfs2/pric7208/repos/unet-estimator/small_full_resolution_eval.tfrecords'
 
 # Specify the shape of training and evaluation images.
 image_shape = [1280, 1920]
@@ -79,9 +79,7 @@ class Unet_Model():
         self.image_width = image_width
         self.num_channels = num_channels
 
-        #self.c_channels = [32, 64, 128, 256, 512]
         self.num_conv_filters_at_level = [32, 64, 128, 256, 512]
-        # self.half_length = 4
         self.num_max_pool_ops = 4
         self.num_up_conv_ops = self.num_max_pool_ops
         self.num_conv_ops_per_level = 2
@@ -105,14 +103,6 @@ class Unet_Model():
                # Apply the layer to the inputs.
                conv = layer(inputs=conv)
 
-               #  conv = tf.layers.conv2d(
-               #      inputs=conv, 
-               #      filters=self.c_channels[b],
-               #      kernel_size=[3, 3],
-               #      padding="SAME",
-               #      data_format=self.data_format,
-               #      activation=tf.nn.relu)
-
             # Store the last layer of each level.
             self.c_layer.append(conv)
             size = conv.get_shape().as_list()
@@ -135,13 +125,6 @@ class Unet_Model():
                 name='Conv2D_Bottom_{}'.format(conv_op))
 
             conv = layer(inputs=conv)
-            # conv = tf.layers.conv2d(
-            #     inputs=conv, 
-            #     filters=self.c_channels[self.num_max_pool_ops],
-            #     kernel_size=[3, 3],
-            #     padding="SAME",
-            #     data_format=self.data_format,
-            #     activation=tf.nn.relu)
 
         print('Bottom block last layer size {}'.format(conv.get_shape().as_list()))
 
@@ -155,13 +138,8 @@ class Unet_Model():
 
             # Apply the layer to the input.
             conv = layer(inputs=conv)
-            # conv = tf.layers.conv2d_transpose(
-            #     inputs=conv,
-            #     filters=self.e_channels[b],
-            #     kernel_size=[2, 2],
-            #     strides=[2, 2],
-            #     data_format=self.data_format)
 
+            # Concatenate with contraction outputs.
             size_current = conv.get_shape().as_list()
             skip = self.c_layer[-(up_conv_op + 1)]
             size_old = self.c_size[-(up_conv_op + 1)]                    
@@ -179,15 +157,7 @@ class Unet_Model():
                 # Apply the layer to the inputs
                 conv = layer(inputs=conv)
 
-                # conv = tf.layers.conv2d(
-                #     inputs=conv,
-                #     filters=self.e_channels[b],
-                #     kernel_size=[3, 3],
-                #     padding="SAME",
-                #     data_format=self.data_format,
-                #     activation=tf.nn.relu)
-
-            print('Decoder block {} last layer size {}'.format(
+           print('Decoder block {} last layer size {}'.format(
                 up_conv_op + 1, conv.get_shape().as_list()))
 
         logits = tf.layers.conv2d(
@@ -210,6 +180,7 @@ def model_fn(features, labels, mode, params):
     masks = labels
     data_format = params['data_format']
 
+    # TODO: Rewrite the prediction logic to work with the new data_format.
     if mode == PREDICT:
         logits = model(images, training=False) # Call the model
         pred_masks = tf.argmax(logits, axis=-1)
@@ -232,7 +203,6 @@ def model_fn(features, labels, mode, params):
         logits = model(images, training=True)
         optimizer = tf.train.AdamOptimizer(learning_rate=LEARNING_RATE)
         
-        # loss = tf.losses.softmax_cross_entropy(y_hot, logits)
         loss = tf.reduce_mean(
             tf.nn.softmax_cross_entropy_with_logits_v2(
                 labels=y_hot,
@@ -250,9 +220,9 @@ def model_fn(features, labels, mode, params):
             loss=loss,
             train_op=optimizer.minimize(loss, tf.train.get_or_create_global_step()))
 
+    # TODO: consider wrapping the loss computation in a function to avoid rewriting it.
     assert mode == EVAL
     logits = model(images, training=False)
-    # loss = tf.losses.softmax_cross_entropy(y_hot, logits)
     loss = tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits_v2(
             labels=y_hot,
@@ -299,11 +269,7 @@ def parser(record, image_shape, data_format):
         # TODO: Experiment with reshaping to determine if this is valid.
         # These reshape commands may be causing problems for training. The images were
         # saved in HWC format; reshaping them may destroy the image.
-    # else:
-    #     # Channels last should improve performance when training on CPU
-    #     assert data_format == 'channels_last'
-    #     original = tf.reshape(original, shape=[*image_shape, 3])
-    
+   
     segmented = tf.decode_raw(parsed["mask"], tf.uint8)
     segmented = tf.cast(segmented, tf.int32)
     segmented = tf.reshape(segmented, shape=image_shape)
