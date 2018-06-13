@@ -11,9 +11,9 @@ import os
 
 LEARNING_RATE = 1e-5
 
-MODEL_DIR = '/mnt/lfs2/pric7208/tf-saves/unet-estimator'
-NUM_EPOCHS = 1
-EPOCHS_BETWEEN_EVALS = 1
+MODEL_DIR = '/mnt/lfs2/pric7208/tf-saves/shallow-unet-estimator'
+NUM_EPOCHS = 20
+EPOCHS_BETWEEN_EVALS = 2
 
 WORKING_DIR = '/mnt/lfs2/pric7208/kaggle/carvana'
 IMAGE_DIR = os.path.join(WORKING_DIR, 'train_hq')
@@ -67,8 +67,10 @@ class Unet_Model():
     def __init__(self, params):
         self.data_format = params['data_format']
 
-        self.num_conv_filters_at_level = [32, 64, 128, 256, 512]
-        self.num_max_pool_ops = 4
+        # self.num_conv_filters_at_level = [32, 64, 128, 256, 512]
+        self.num_conv_filters_at_level = [16, 32, 64, 128]
+        # self.num_max_pool_ops = 4
+        self.num_max_pool_ops = 3
         self.num_up_conv_ops = self.num_max_pool_ops
         self.num_conv_ops_per_level = 2
         self.e_channels = self.num_conv_filters_at_level[-2: :-1]
