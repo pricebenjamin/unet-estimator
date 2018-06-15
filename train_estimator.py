@@ -20,8 +20,8 @@ import argparse
 LEARNING_RATE = 1e-5
 
 MODEL_DIR = '/mnt/lfs2/pric7208/tf-saves/unet-estimator'
-NUM_EPOCHS = 20
-EPOCHS_BETWEEN_EVALS = 2
+NUM_EPOCHS = 1
+EPOCHS_BETWEEN_EVALS = 1
 
 WORKING_DIR = '/mnt/lfs2/pric7208/kaggle/carvana'
 IMAGE_DIR = os.path.join(WORKING_DIR, 'train_hq')
@@ -60,12 +60,11 @@ def main(fold_nums):
 
     # Train separate models on each requested fold.
     for fold_num in fold_nums:
-        (train_images, train_masks), (eval_images, eval_masks) = \
-            folds.get_fold(fold_num)
+        (train_images, train_masks), (eval_images, eval_masks) = folds.get_fold(fold_num)
 
         # Initialize the Estimator
         image_segmentor = tf.estimator.Estimator(
-            model_dir='-'.join(MODEL_DIR, 'fold', str(fold_num)),
+            model_dir='-'.join([MODEL_DIR, 'fold', str(fold_num)]),
             model_fn=model_fn,
             params=params,
             config=config)
@@ -98,8 +97,8 @@ if __name__=="__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--folds', type=str, required=True,
-        help='a string which can be evaluated to a python list; the python list'\
-             'should contain integers from the interval [0, 5] indicating which'\
+        help='a string which can be evaluated to a python list; the python list '\
+             'should contain integers from the interval [0, 5] indicating which '\
              'folds the network will use for training')
     args = parser.parse_args()
     
