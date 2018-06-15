@@ -1,19 +1,11 @@
-## Pretty sure these imports are unused...
-# from __future__ import absolute_import, division, print_function
-# from tensorflow.core.protobuf import config_pb2
-# from PIL import Image
-# from multiprocessing import Pool
-
 # Local imports
 from input_fn import input_fn
 from KFolds import KFolds
 from model import model_fn
 
+# Load external modules
 from glob import glob
-
 import tensorflow as tf
-# import numpy as np
-# import sys
 import os
 import argparse
 
