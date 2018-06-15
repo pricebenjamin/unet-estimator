@@ -62,7 +62,7 @@ class KFolds():
         train_pairs = self.pairs[~mask].reshape((-1, 2)).tolist()
 
         # Unzip the pairs back into image filenames and mask filenames.
-        eval_image, eval_masks = map(list, zip(*eval_pairs))
+        eval_images, eval_masks = map(list, zip(*eval_pairs))
         train_images, train_masks = map(list, zip(*train_pairs))
 
         if self.yield_dict:
