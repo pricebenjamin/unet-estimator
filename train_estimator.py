@@ -19,9 +19,9 @@ import argparse
 
 LEARNING_RATE = 1e-5
 
-MODEL_DIR = '/mnt/lfs2/pric7208/tf-saves/unet-estimator'
-NUM_EPOCHS = 1
-EPOCHS_BETWEEN_EVALS = 1
+MODEL_DIR = '/mnt/lfs2/pric7208/tf-saves/cross-validate/standard-unet/fold'
+NUM_EPOCHS = 20
+EPOCHS_BETWEEN_EVALS = 2
 
 WORKING_DIR = '/mnt/lfs2/pric7208/kaggle/carvana'
 IMAGE_DIR = os.path.join(WORKING_DIR, 'train_hq')
@@ -34,7 +34,7 @@ NUM_FOLDS = 6
 NUM_OUTPUT_CLASSES = 2 # Output pixels are either 'on' or 'off'
 
 TRAIN_BATCH_SIZE = 1
-EVAL_BATCH_SIZE = 2
+EVAL_BATCH_SIZE = 4
 
 
 # TODO: Finalize performance improvements.
@@ -64,7 +64,7 @@ def main(fold_nums):
 
         # Initialize the Estimator
         image_segmentor = tf.estimator.Estimator(
-            model_dir='-'.join([MODEL_DIR, 'fold', str(fold_num)]),
+            model_dir='-'.join([MODEL_DIR, str(fold_num)]),
             model_fn=model_fn,
             params=params,
             config=config)
