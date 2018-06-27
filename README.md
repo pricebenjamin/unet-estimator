@@ -1,3 +1,5 @@
+Note: This README is an early work-in-progress. The body still needs to be written and images need to be resized.
+
 # Implementing U-Net using the TensorFlow Estimator API
 
 This repository contains scripts for building, training, and generating predictions with our own implementation of the U-Net architecture. The network was implemented in Python using TensorFlow's Estimator API. Our goal was to reproduce the U-Net architecture described in [1], then train the network on data provided by the Carvana Image Masking Challenge hosted on Kaggle [2]. Our implementation produced masks with average pixel accuracy of 0.9959 +/- 0.0003 over a 6-fold cross-validation set.
