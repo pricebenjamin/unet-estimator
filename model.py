@@ -165,6 +165,7 @@ def model_fn(features, labels, mode, params):
 
         r_channel = tf.zeros(b_channel.shape)
         rgb_image = tf.stack([r_channel, g_channel, b_channel], axis=channels_axis)
+        rgb_image = tf.cast(rgb_image * 255, tf.uint8)
 
         segmentation = tf.argmax(logits, axis=channels_axis)
         
