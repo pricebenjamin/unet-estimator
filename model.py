@@ -163,22 +163,25 @@ def model_fn(features, labels, mode, params):
             b_channels = class_probabilities[:, :, :, 0]
             g_channels = class_probabilities[:, :, :, 1]
 
-        r_channels = tf.zeros(b_channels.shape)
+        r_channels = tf.zeros(tf.shape(b_channels))
         rgb_images = tf.stack([r_channels, g_channels, b_channels], axis=channels_axis)
         rgb_images = tf.cast(rgb_images * 255, tf.uint8)
 
         predicted_masks = tf.argmax(logits, axis=channels_axis)
         
-        pixel_matches = tf.equal(predicted_masks, masks)
-        pixel_matches = tf.cast(pixel_matches, tf.float32)
-        accuracy = tf.reduce_mean(pixel_matches)
+        # When calling estimator.predict(...), model_fn receives `None`
+        # as its `labels` argument. Hence, accuracy cannot be computed
+        # here. It would need to be computed after generating predictions.
+        # pixel_matches = tf.equal(predicted_masks, masks)
+        # pixel_matches = tf.cast(pixel_matches, tf.float32)
+        # accuracy = tf.reduce_mean(pixel_matches)
         # Note: This computes accuracy over the whole batch.
         
         predictions = {
             'images': images,
-            'heat_maps': rgb_image,
+            'heat_maps': rgb_images,
             'masks': predicted_masks,
-            'accuracy': accuracy
+            # 'accuracy': accuracy
         }
 
         return tf.estimator.EstimatorSpec(
@@ -186,31 +189,9 @@ def model_fn(features, labels, mode, params):
             predictions=predictions)
 
     onehot_masks = tf.one_hot(
-        masks,folds = KFolds(IMAGE_FILENAMES, MASK_FILENAMES,
-        num_folds=NUM_FOLDS, sort=False, yield_dict=False)
-
-    data_format = ('channels_first' if tf.test.is_built_with_cuda() else 'channels_last')
-
-    params = {'data_format': data_format}
-
-    image_segmentor = tf.estimator.Estimator(
-        model_dir='-'.join([MODEL_DIR, str(FOLD_NUM)]),
-        model_fn=model_fn,
-        params=params)
-
-    # Fetch the images in the evaluation set of the specified fold.
-    # Note: We throw away the training images and training masks.
-    (_, _), (eval_images, eval_masks) = folds.get_fold(FOLD_NUM)
-
-    # Select a few of the evaluation images at random.
-    num_images = len(eval_images)
-    assert num_images == len(eval_masks)
-
-    random_indexes = np.random.choice(num_images, size=NUM_IMAGES_TO_PREDICT, replace=False)
-    images_to_predict = eval_images[random_indexes]
-    images_masks = eval_masks[random_indexes]
+        masks,
         depth=num_output_classes,
-        axis=(1 if data_format == 'channels_first' else -1))
+        axis=channels_axis)
 
     if mode == TRAIN:
         logits = model(images, training=True)
