@@ -27,7 +27,8 @@ class KFolds():
 
         self.num_folds = num_folds
         assert num_cars % num_folds == 0 # TODO: How should we define folds if
-        # the number of examples is not evenly divisible by num_folds?
+        # the number of examples is not evenly divisible by num_folds? Should
+        # we throw away the remainder or have different sized folds?
 
         # Zip images with their corresponding masks.
         if sort:
