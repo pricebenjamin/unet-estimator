@@ -43,6 +43,8 @@ class Unet_Model():
         self.c_size = []
 
     def __call__(self, inputs, training):
+        # Note: We currently don't use the `training` argument.
+        # This argument could be used in the future if we wish to add Dropout.
         conv = inputs
 
         # Contraction
@@ -144,16 +146,32 @@ def model_fn(features, labels, mode, params):
     num_output_classes = params['num_output_classes']
     learning_rate = params['learning_rate']
 
+    channels_axis = (1 if data_format == 'channels_first' else -1)
+
     # TODO: Rewrite the prediction logic to work with the new data_format.
     if mode == PREDICT:
         logits = model(images, training=False) # Call the model
-        pred_masks = tf.argmax(logits, axis=-1)
-        pred_masks = tf.stack([pred_masks] * 3, axis=-1)
-        pred_masks = tf.cast(pred_masks, tf.float32)
+
+        class_probabilities = tf.nn.softmax(logits, axis=channels_axis)
+        
+        # Convert probabilities into a color image to examine network confidence.
+        # Here we decide to create a blue-green image; the red channel is set to zero.
+        if data_format == 'channels_first':
+            b_channel = class_probabilities[:, 0, :, :]
+            g_channel = class_probabilities[:, 1, :, :]
+        else:
+            b_channel = class_probabilities[:, :, :, 0]
+            g_channel = class_probabilities[:, :, :, 1]
+
+        r_channel = tf.zeros(b_channel.shape)
+        rgb_image = tf.stack([r_channel, g_channel, b_channel], axis=channels_axis)
+
+        segmentation = tf.argmax(logits, axis=channels_axis)
+        
         predictions = {
-            # 'image': images,
-            # 'pred_mask': tf.argmax(logits, axis=-1),
-            'cut': tf.multiply(images, pred_masks)
+            'images': images,
+            'heat_maps': rgb_image,
+            'masks': segmentation
         }
 
         return tf.estimator.EstimatorSpec(
