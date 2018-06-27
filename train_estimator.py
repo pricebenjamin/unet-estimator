@@ -23,7 +23,8 @@ IMAGE_FILENAMES = sorted(glob(os.path.join(IMAGE_DIR, '*.jpg')))
 MASK_FILENAMES = sorted(glob(os.path.join(MASK_DIR, '*.gif')))
 NUM_FOLDS = 6
 
-NUM_OUTPUT_CLASSES = 2 # Output pixels are either 'on' or 'off'
+NUM_OUTPUT_CLASSES = 2
+# Pixels are classified as either "foreground" or "background"
 
 TRAIN_BATCH_SIZE = 1
 EVAL_BATCH_SIZE = 4
@@ -38,7 +39,6 @@ def main(fold_nums):
         'learning_rate': LEARNING_RATE
     }
 
-    # TODO: Finalize performance improvements.
     # Mirror the model accross all available GPUs using the mirrored distribution strategy.
     distribution = tf.contrib.distribute.MirroredStrategy()
     config = tf.estimator.RunConfig(
@@ -87,10 +87,14 @@ if __name__=="__main__":
     tf.logging.set_verbosity(tf.logging.INFO)
 
     parser = argparse.ArgumentParser()
+    # TODO: Update --folds argument to accept multiple integers.
+    # This can be done with `nargs='+'`, I think...
     parser.add_argument('-f', '--folds', type=str, required=True,
         help='a string which can be evaluated to a python list; the python list '\
              'should contain integers from the interval [0, 5] indicating which '\
              'folds the network will use for training')
+    # TODO: Consider adding flags for the model directory, data directory, number
+    # of epochs, epochs between evals. Choose good defaults.
     args = parser.parse_args()
     
     assert args.folds[0] == '[' and args.folds[-1] == ']'
