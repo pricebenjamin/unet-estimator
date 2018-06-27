@@ -127,12 +127,12 @@ class Unet_Model():
         return logits
 
 
-def compute_loss(logits, onehot_masks, data_format):
+def compute_loss(logits, onehot_masks, channels_axis):
     return tf.reduce_mean(
         tf.nn.softmax_cross_entropy_with_logits_v2(
             labels=onehot_masks,
             logits=logits,
-            dim=(1 if data_format == 'channels_first' else -1))) # Specify class dimension
+            dim=channels_axis)) # Specify class dimension
 
 def model_fn(features, labels, mode, params):
     PREDICT = tf.estimator.ModeKeys.PREDICT
@@ -148,10 +148,8 @@ def model_fn(features, labels, mode, params):
 
     channels_axis = (1 if data_format == 'channels_first' else -1)
 
-    # TODO: Rewrite the prediction logic to work with the new data_format.
     if mode == PREDICT:
         logits = model(images, training=False) # Call the model
-
         class_probabilities = tf.nn.softmax(logits, axis=channels_axis)
         
         # Convert probabilities into a color image to examine network confidence.
@@ -196,7 +194,7 @@ def model_fn(features, labels, mode, params):
     if mode == TRAIN:
         logits = model(images, training=True)
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-        loss = compute_loss(logits, onehot_masks, data_format)
+        loss = compute_loss(logits, onehot_masks, channels_axis)
 
         # Metrics are not yet supported during training when using Mirrored Strategy.
         # See: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/contrib/distribute/README.md
@@ -209,10 +207,9 @@ def model_fn(features, labels, mode, params):
             loss=loss,
             train_op=optimizer.minimize(loss, tf.train.get_or_create_global_step()))
 
-    # TODO: consider wrapping the loss computation in a function to avoid rewriting it.
     assert mode == EVAL
     logits = model(images, training=False)
-    loss = compute_loss(logits, onehot_masks, data_format)
+    loss = compute_loss(logits, onehot_masks, channels_axis)
 
     return tf.estimator.EstimatorSpec(
         mode=EVAL,
@@ -220,6 +217,6 @@ def model_fn(features, labels, mode, params):
         eval_metric_ops={
             'accuracy': tf.metrics.accuracy(
                 labels=masks, 
-                predictions=tf.argmax(logits, axis=(1 if data_format == 'channels_first' else -1)))
+                predictions=tf.argmax(logits, axis=channels_axis))
         })
 
