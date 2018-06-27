@@ -157,22 +157,28 @@ def model_fn(features, labels, mode, params):
         # Convert probabilities into a color image to examine network confidence.
         # Here we decide to create a blue-green image; the red channel is set to zero.
         if data_format == 'channels_first':
-            b_channel = class_probabilities[:, 0, :, :]
-            g_channel = class_probabilities[:, 1, :, :]
+            b_channels = class_probabilities[:, 0, :, :]
+            g_channels = class_probabilities[:, 1, :, :]
         else:
-            b_channel = class_probabilities[:, :, :, 0]
-            g_channel = class_probabilities[:, :, :, 1]
+            b_channels = class_probabilities[:, :, :, 0]
+            g_channels = class_probabilities[:, :, :, 1]
 
-        r_channel = tf.zeros(b_channel.shape)
-        rgb_image = tf.stack([r_channel, g_channel, b_channel], axis=channels_axis)
-        rgb_image = tf.cast(rgb_image * 255, tf.uint8)
+        r_channels = tf.zeros(b_channels.shape)
+        rgb_images = tf.stack([r_channels, g_channels, b_channels], axis=channels_axis)
+        rgb_images = tf.cast(rgb_images * 255, tf.uint8)
 
-        segmentation = tf.argmax(logits, axis=channels_axis)
+        predicted_masks = tf.argmax(logits, axis=channels_axis)
+        
+        pixel_matches = tf.equal(predicted_masks, masks)
+        pixel_matches = tf.cast(pixel_matches, tf.float32)
+        accuracy = tf.reduce_mean(pixel_matches)
+        # Note: This computes accuracy over the whole batch.
         
         predictions = {
             'images': images,
             'heat_maps': rgb_image,
-            'masks': segmentation
+            'masks': predicted_masks,
+            'accuracy': accuracy
         }
 
         return tf.estimator.EstimatorSpec(
@@ -180,7 +186,29 @@ def model_fn(features, labels, mode, params):
             predictions=predictions)
 
     onehot_masks = tf.one_hot(
-        masks,
+        masks,folds = KFolds(IMAGE_FILENAMES, MASK_FILENAMES,
+        num_folds=NUM_FOLDS, sort=False, yield_dict=False)
+
+    data_format = ('channels_first' if tf.test.is_built_with_cuda() else 'channels_last')
+
+    params = {'data_format': data_format}
+
+    image_segmentor = tf.estimator.Estimator(
+        model_dir='-'.join([MODEL_DIR, str(FOLD_NUM)]),
+        model_fn=model_fn,
+        params=params)
+
+    # Fetch the images in the evaluation set of the specified fold.
+    # Note: We throw away the training images and training masks.
+    (_, _), (eval_images, eval_masks) = folds.get_fold(FOLD_NUM)
+
+    # Select a few of the evaluation images at random.
+    num_images = len(eval_images)
+    assert num_images == len(eval_masks)
+
+    random_indexes = np.random.choice(num_images, size=NUM_IMAGES_TO_PREDICT, replace=False)
+    images_to_predict = eval_images[random_indexes]
+    images_masks = eval_masks[random_indexes]
         depth=num_output_classes,
         axis=(1 if data_format == 'channels_first' else -1))
 
