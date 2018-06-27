@@ -8,6 +8,9 @@ def parser(
     target_image_shape=[1280, 1920],  # Pad with zeros until target shape
     num_channels=3):                  # Number of channels in the input image
 
+    # TODO: Consider examining performance if TF operations are replaced with
+    # pillow (or opencv) operations, such as Image.open or Image.resize
+    
     # Parse the original image into a tensor of shape == [1280, 1920, 3]
     # with dtype == tf.float32 and RGB values in the range [0, 1].
     image = tf.read_file(single_image_filename_tensor)
@@ -28,18 +31,23 @@ def parser(
         target_width=target_image_shape[1])
 
     if data_format == 'channels_first':
+        # Extract each channel in an explicit way to prevent
+        # mangling the structure of the image.
         c0 = image[:, :, 0]
         c1 = image[:, :, 1]
         c2 = image[:, :, 2]
+        # Recombine the channels
         image = tf.stack([c0, c1, c2], axis=0)
 
     image = tf.cast(image, tf.float32) / 255 # Convert and scale
+    # TODO: Does scaling provide any benefit? Can we test this?
 
     # Parse the segmented image (mask) into a tensor of shape == [1280, 1920]
     # with dtype == tf.int32 and grayscale values in the rage [0, 1].
     mask = tf.read_file(single_mask_filename_tensor)
     mask = tf.image.decode_gif(mask)
     # After decoding, mask.shape == [1, 1280, 1918, 3]
+    # This is because 'gif' files are assumed to contain several 'frames'.
     mask = tf.image.rgb_to_grayscale(mask)
     # After grayscaling, mask.shape == [1, 1280, 1918, 1]
     mask = tf.image.pad_to_bounding_box( # Works with 4-D tensors
@@ -70,7 +78,7 @@ def input_fn(
 
     if training:
         examples = examples.apply(tf.contrib.data.shuffle_and_repeat(
-            len(image_filenames) * num_repeats,
+            len(image_filenames) * num_repeats, # buffer size
             num_repeats))
     
     examples = examples.apply(tf.contrib.data.map_and_batch(
@@ -122,7 +130,7 @@ def input_fn(
 #     return original, segmented
 
 # def input_fn(filename, image_shape, data_format, train, num_repeat=1, batch_size=1):
-#     # Training Performance: A user's guid to converge faster (TF Dev Summit 2018)
+#     # Training Performance: A user's guide to converge faster (TF Dev Summit 2018)
 #     # https://www.youtube.com/watch?v=SxOsJPaxHME&t=1529s
 #     dataset = tf.data.TFRecordDataset(
 #         filenames=filename, 
