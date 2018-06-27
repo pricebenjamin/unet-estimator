@@ -28,15 +28,6 @@ NUM_OUTPUT_CLASSES = 2 # Output pixels are either 'on' or 'off'
 TRAIN_BATCH_SIZE = 1
 EVAL_BATCH_SIZE = 4
 
-
-# TODO: Finalize performance improvements.
-# Mirror the model accross all available GPUs using the mirrored distribution strategy.
-distribution = tf.contrib.distribute.MirroredStrategy()
-config = tf.estimator.RunConfig(
-    train_distribute=distribution,
-    keep_checkpoint_max=2,
-    log_step_count_steps=5)
-
 def main(fold_nums):
     # Check if the system's version of TensorFlow was built with CUDA (i.e. uses a GPU)
     data_format = ('channels_first' if tf.test.is_built_with_cuda() else 'channels_last')
@@ -46,6 +37,14 @@ def main(fold_nums):
         'num_output_classes': NUM_OUTPUT_CLASSES,
         'learning_rate': LEARNING_RATE
     }
+
+    # TODO: Finalize performance improvements.
+    # Mirror the model accross all available GPUs using the mirrored distribution strategy.
+    distribution = tf.contrib.distribute.MirroredStrategy()
+    config = tf.estimator.RunConfig(
+        train_distribute=distribution,
+        keep_checkpoint_max=2,
+        log_step_count_steps=5)
 
     folds = KFolds(IMAGE_FILENAMES, MASK_FILENAMES, 
         num_folds=NUM_FOLDS, sort=False, yield_dict=False)
