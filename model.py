@@ -152,18 +152,12 @@ def model_fn(features, labels, mode, params):
         logits = model(images, training=False) # Call the model
         class_probabilities = tf.nn.softmax(logits, axis=channels_axis)
         
-        # Convert probabilities into a color image to examine network confidence.
-        # Here we decide to create a blue-green image; the red channel is set to zero.
-        if data_format == 'channels_first':
-            b_channels = class_probabilities[:, 0, :, :]
-            g_channels = class_probabilities[:, 1, :, :]
-        else:
-            b_channels = class_probabilities[:, :, :, 0]
-            g_channels = class_probabilities[:, :, :, 1]
-
-        r_channels = tf.zeros(tf.shape(b_channels))
-        rgb_images = tf.stack([r_channels, g_channels, b_channels], axis=channels_axis)
-        rgb_images = tf.cast(rgb_images * 255, tf.uint8)
+        assert num_output_classes == 2
+        p0 = class_probabilities[:, 0, :, :]
+        p1 = class_probabilities[:, 1, :, :]
+        unconfidence = 1 / tf.sqrt(p0**2 + p1**1) # Gives larger values when p1 ~ p2
+        unconfidence = (unconfidence - 1) / (tf.sqrt(2.) - 1) # Scale to the interval [0, 1]
+        unconfidence = unconfidence**4 # Give emphasis to higher unconfidence scores
 
         predicted_masks = tf.argmax(logits, axis=channels_axis)
         
@@ -177,9 +171,8 @@ def model_fn(features, labels, mode, params):
         
         predictions = {
             'images': images,
-            'heat_maps': rgb_images,
+            'unconfidence': unconfidence,
             'masks': predicted_masks,
-            # 'accuracy': accuracy
         }
 
         return tf.estimator.EstimatorSpec(
