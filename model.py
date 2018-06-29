@@ -153,11 +153,17 @@ def model_fn(features, labels, mode, params):
         class_probabilities = tf.nn.softmax(logits, axis=channels_axis)
         
         assert num_output_classes == 2
-        p0 = class_probabilities[:, 0, :, :]
-        p1 = class_probabilities[:, 1, :, :]
-        unconfidence = 1 / tf.sqrt(p0**2 + p1**1) # Gives larger values when p1 ~ p2
+        if channels_axis == 1:
+            p0 = class_probabilities[:, 0, :, :]
+            p1 = class_probabilities[:, 1, :, :]
+        else:
+            assert channels_axis == -1
+            p0 = class_probabilities[:, :, :, 0]
+            p1 = class_probabilities[:, :, :, 1]
+        
+        unconfidence = 1 / tf.sqrt(p0**2 + p1**2) # Gives larger values when p1 ~ p2
         unconfidence = (unconfidence - 1) / (tf.sqrt(2.) - 1) # Scale to the interval [0, 1]
-        unconfidence = unconfidence**4 # Give emphasis to higher unconfidence scores
+        # unconfidence = unconfidence**4 # Give emphasis to higher unconfidence scores
 
         predicted_masks = tf.argmax(logits, axis=channels_axis)
         
