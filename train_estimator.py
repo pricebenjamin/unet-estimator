@@ -11,6 +11,7 @@ import argparse
 
 LEARNING_RATE = 1e-5
 
+# TODO: Accept commandline arguments for the following variables
 MODEL_DIR = '/mnt/lfs2/pric7208/tf-saves/cross-validate/standard-unet/fold'
 NUM_EPOCHS = 20
 EPOCHS_BETWEEN_EVALS = 2
@@ -29,6 +30,7 @@ NUM_OUTPUT_CLASSES = 2
 TRAIN_BATCH_SIZE = 1
 EVAL_BATCH_SIZE = 4
 
+# TODO: Which command line args are passed to main?
 def main(fold_nums):
     # Check if the system's version of TensorFlow was built with CUDA (i.e. uses a GPU)
     data_format = ('channels_first' if tf.test.is_built_with_cuda() else 'channels_last')
@@ -40,6 +42,8 @@ def main(fold_nums):
     }
 
     # Mirror the model accross all available GPUs using the mirrored distribution strategy.
+    # TODO: Enable multi-gpu support via commandline arg instead of by default
+    # - Is there a good way to check if multiple GPUs are available?
     distribution = tf.contrib.distribute.MirroredStrategy()
     config = tf.estimator.RunConfig(
         train_distribute=distribution,
@@ -81,6 +85,7 @@ def main(fold_nums):
                     data_format=params['data_format'],
                     batch_size=EVAL_BATCH_SIZE))
 
+            # TODO: Look into writing example images to a tf.summary?
             print('\nEvaluation results:\n%s\n' % results)
 
 if __name__=="__main__":
