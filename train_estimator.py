@@ -92,17 +92,21 @@ if __name__=="__main__":
     tf.logging.set_verbosity(tf.logging.INFO)
 
     parser = argparse.ArgumentParser()
-    # TODO: Update --folds argument to accept multiple integers.
-    # This can be done with `nargs='+'`, I think...
-    parser.add_argument('-f', '--folds', type=str, required=True,
-        help='a string which can be evaluated to a python list; the python list '\
-             'should contain integers from the interval [0, 5] indicating which '\
-             'folds the network will use for training')
+    
+    # TODO: Should we give users the option to use Cross-Validation?
+    # Or would it be more sensible to use it be default? Or not give an option?
+    parser.add_argument('--use-cv', actions='store_true')
+    parser.add_argument('-K', '--num-folds', metavar='k', type=int,
+        # required=True, # TODO: Raise error if use_cv but no K?
+        help='an integer specifying how many bins (i.e. subsets or folds) '\
+             'the training set will be split between')
+    parser.add_argument('--folds', metavar='n', type=int, nargs='+',
+        # TODO: If use_cv but no folds specified, assume all folds.
+        help='an integer (or list of integers) specifying which fold(s) to '\
+             'train against. Fold indexes start at zero.')
+    
+    args = parser.parse_args()
     # TODO: Consider adding flags for the model directory, data directory, number
     # of epochs, epochs between evals. Choose good defaults.
-    args = parser.parse_args()
-    
-    assert args.folds[0] == '[' and args.folds[-1] == ']'
-    fold_nums = eval(args.folds) # This is probably *very* unsafe.
 
-    main(fold_nums)
+    main(args)
