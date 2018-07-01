@@ -104,7 +104,10 @@ if __name__ == '__main__':
     # Directory arguments
     parser.add_argument('--model-dir', type=str, required=True,
         help='location in which to find and/or save the network model '\
-             'and Tensorboard summaries')
+             'and Tensorboard summaries; if cross-validation is used, '\
+             'the given location will be used as the base name for '\
+             'each network\'s folder and a fold index will be appended')
+    # TODO: Make the above help statement more clear/concise
     parser.add_argument('--data-dir', type=str, required=True,
         help='location of Carvana Image Masking Competition data')
 
@@ -151,6 +154,8 @@ if __name__ == '__main__':
 
     # Verify cross-validation arguments
     if args.no_cv:
+        # TODO: Allow --no-cv
+        raise NotImplementedError('Cross-validation is required for now.')
         # User has specified that cross-validation should not be used;
         # check that this does not conflict with the remaining arguments.
         if args.num_folds is not None:
@@ -168,7 +173,5 @@ if __name__ == '__main__':
         if min(args.folds) < 0 or max(args.folds) > args.num_folds - 1:
             raise parser.error('Fold indexes must be non-negative and less '\
                 'than --num-folds.')
-    # TODO: Consider adding flags for the model directory, data directory, number
-    # of epochs, epochs between evals. Choose good defaults.
 
     main(args)
