@@ -26,7 +26,7 @@ def arg_parser(args_list):
     parser.add_argument('--image-dir', type=str, required=True,
         help='directory containing raw images. Currently, it is assumed '\
              'that images are in the .jpg format.')
-    parser.add_argument('--mask-dir', type=str, required=True,
+    parser.add_argument('--mask-dir', type=str,
         help='directory containing segmented images, i.e. masks. '\
              'Currently, it is assumed that masks are in the .gif format.')
 
@@ -71,6 +71,24 @@ def arg_parser(args_list):
     if count_est_args == 0:
         raise parser.error('Please specify one argument from {}.'.format(
             estimator_options)) # TODO: Should we train by default?
+
+    # Verify directory arguments agree with Estimator arguments
+    if args.predict:
+        # Prediction expects unlabeled data
+        try:
+            assert args.mask_dir is None
+        except AssertionError:
+            raise parser.error('Mask directory was provided when calling '\
+                '`--predict`. Prediction should only be used for unlabeled data. '\
+                'Consider using `--evaluate` instead.')
+    else:
+        # Training and evaluation requires labeled data
+        try:
+            assert args.mask_dir is not None
+        except AssertionError:
+            raise parser.error('No mask directory was provided, but is required '\
+                'when calling `--train` or `--evaluate`. Please provide a mask '\
+                'directory or use `--predict` for unlabed data.')
 
     # Verify training arguments
     if args.num_epochs <= 0:
