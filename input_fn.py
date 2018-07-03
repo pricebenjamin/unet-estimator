@@ -3,10 +3,17 @@ import tensorflow as tf
 def parser(
     single_image_filename_tensor, # A tensor containing a single filename
     single_mask_filename_tensor,  # A tensor containing a single filename
-    data_format,                  # If 'channels_first', reshape the image
-    initial_image_shape=[1280, 1918], # Initial shape of the image
-    target_image_shape=[1280, 1920],  # Pad with zeros until target shape
-    num_channels=3):                  # Number of channels in the input image
+    data_format,         # If 'channels_first', reshape the image
+    pad_image,           # Boolean: Should we pad the image?
+    initial_image_shape, 
+    target_image_shape,  # Pad with zeros until target shape
+    num_channels=3):     # Number of channels in the input image
+    '''
+    TODO: docstring
+
+    Returns: (`image`, `mask`) if single_mask_filename_tensor is not None, other-
+    wise returns `image`.
+    '''
 
     # TODO: Consider examining performance if TF operations are replaced with
     # pillow (or opencv) operations, such as Image.open or Image.resize
@@ -16,19 +23,22 @@ def parser(
     image = tf.read_file(single_image_filename_tensor)
     image = tf.image.decode_jpeg(image, channels=num_channels)
     # After decoding, image.shape == [1280, 1918, 3]
+
     top_padding  = int((target_image_shape[0] - initial_image_shape[0]) / 2)
     left_padding = int((target_image_shape[1] - initial_image_shape[1]) / 2)
-    image = tf.image.pad_to_bounding_box(
-        # Pads the image to the desired size by adding zeros.
-        image,
-        # Adds `offset_height` rows of zeros to the top
-        offset_height=top_padding,
-        # Adds `offset_width` rows of zeros to the left
-        offset_width=left_padding,
-        # Pad the image on the bottom until `target_height`
-        target_height=target_image_shape[0],
-        # Pad the iamge on the right until `target_width`
-        target_width=target_image_shape[1])
+
+    if pad_image:
+        image = tf.image.pad_to_bounding_box(
+            # Pads the image to the desired size by adding zeros.
+            image,
+            # Adds `offset_height` rows of zeros to the top
+            offset_height=top_padding,
+            # Adds `offset_width` rows of zeros to the left
+            offset_width=left_padding,
+            # Pad the image on the bottom until `target_height`
+            target_height=target_image_shape[0],
+            # Pad the iamge on the right until `target_width`
+            target_width=target_image_shape[1])
 
     if data_format == 'channels_first':
         # Extract each channel in an explicit way to prevent
@@ -42,30 +52,42 @@ def parser(
     image = tf.cast(image, tf.float32) / 255 # Convert and scale
     # TODO: Does scaling provide any benefit? Can we test this?
 
-    # Parse the segmented image (mask) into a tensor of shape == [1280, 1920]
-    # with dtype == tf.int32 and grayscale values in the rage [0, 1].
-    mask = tf.read_file(single_mask_filename_tensor)
-    mask = tf.image.decode_gif(mask)
-    # After decoding, mask.shape == [1, 1280, 1918, 3]
-    # This is because 'gif' files are assumed to contain several 'frames'.
-    mask = tf.image.rgb_to_grayscale(mask)
-    # After grayscaling, mask.shape == [1, 1280, 1918, 1]
-    mask = tf.image.pad_to_bounding_box( # Works with 4-D tensors
-        mask,
-        offset_height=top_padding,
-        offset_width=left_padding,
-        target_height=target_image_shape[0],
-        target_width=target_image_shape[1])
-    mask = tf.reshape(mask, target_image_shape)
-    # After reshaping, mask.shape == [1280, 1920]
-    mask = tf.cast(mask / 255, tf.int32)
-    return image, mask
+    if single_mask_filename_tensor is not None:
+        # Parse the segmented image (mask) into a tensor of shape == [1280, 1920]
+        # with dtype == tf.int32 and grayscale values in the rage [0, 1].
+        mask = tf.read_file(single_mask_filename_tensor)
+        mask = tf.image.decode_gif(mask)
+        # After decoding, mask.shape == [1, 1280, 1918, 3]
+        # This is because 'gif' files are assumed to contain several 'frames'.
+        mask = tf.image.rgb_to_grayscale(mask)
+        # After grayscaling, mask.shape == [1, 1280, 1918, 1]
+
+        if pad_image:
+            mask = tf.image.pad_to_bounding_box( # Works with 4-D tensors
+                mask,
+                offset_height=top_padding,
+                offset_width=left_padding,
+                target_height=target_image_shape[0],
+                target_width=target_image_shape[1])
+            mask = tf.reshape(mask, target_image_shape)
+            # After reshaping, mask.shape == [1280, 1920]
+        else:
+            shape = tf.shape(mask)[1:-1] # Remove extraneous dimensions
+            mask = tf.reshape(mask, shape)
+
+        mask = tf.cast(mask / 255, tf.int32)
+        return image, mask
+    else:
+        return image
 
 def input_fn(
     image_filenames,  # List of image filenames
     mask_filenames,   # List of mask filenames
     training,         # Determines whether or not images should be shuffled
     data_format,      # Passed to the parser so that RGB images can be reshaped
+    pad_image=True,   # Passed to the parser
+    initial_image_shape=[1280, 1918], # Passed to the parser
+    target_image_shape=[1280, 1920],  # Passed to the parser
     num_repeats=1,    # Number of times to repeat the set of images
     batch_size=1,     # Number of images in each batch
     num_parallel_batches=8, # How many processing cores are available?
@@ -82,12 +104,39 @@ def input_fn(
             num_repeats))
     
     examples = examples.apply(tf.contrib.data.map_and_batch(
-        lambda image, mask: parser(image, mask, data_format),
+        lambda image, mask: parser(image, mask, 
+            data_format=data_format,
+            pad_image=pad_image,
+            initial_image_shape=initial_image_shape,
+            target_image_shape=target_image_shape),
         batch_size=batch_size,
         num_parallel_batches=num_parallel_batches))
     
     examples = examples.prefetch(num_prefetch)
     return examples
+
+def prediction_input_fn(
+    image_filenames,
+    data_format,
+    pad_image=True,
+    initial_image_shape=[1280, 1918],
+    target_image_shape=[1280, 1920],
+    batch_size=1,
+    num_parallel_batches=8,
+    num_prefetch=None):
+    
+    image_filename_tensor = tf.data.Dataset.from_tensor_slices(image_filenames)
+    images = image_filename_tensor.apply(tf.contrib.data.map_and_batch(
+        lambda image: parser(image, None, 
+            data_format,
+            pad_image=pad_image,
+            initial_image_shape=initial_image_shape,
+            target_image_shape=target_image_shape),
+        batch_size=batch_size,
+        num_parallel_batches=num_parallel_batches))
+
+    images = images.prefetch(num_prefetch)
+    return images
 
 ## Old versions:
 ## These versions have been kept only for reference. They read data from TFRecord files.
