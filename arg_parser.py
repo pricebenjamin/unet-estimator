@@ -8,6 +8,14 @@ def arg_parser(args_list):
         # TODO: description, epilog, other?
         )
     
+    # Estimator arguments
+    # TODO: Write help comments
+    # TODO: Should we allow users to specify more than one of these options?
+    # TODO: Should --predict require its own data directory?
+    parser.add_argument('--train', action='store_true')
+    parser.add_argument('--evaluate', action='store_true')
+    parser.add_argument('--predict', action='store_true')
+
     # Directory arguments
     parser.add_argument('--model-dir', type=str, required=True,
         help='location in which to find and/or save the network model '\
@@ -49,6 +57,18 @@ def arg_parser(args_list):
     # the Estimator API.
     
     args = parser.parse_args(args_list)
+
+    # Verify Estimator arguments
+    count_est_args = sum(map(int, [args.train, args.evaluate, args.predict]))
+    estimator_options = '{--train, --evaluate, --predict}'
+    # Note: booleans work with the + operator , but implicit type conversion 
+    # may cause errors in the future.
+    if count_est_args > 1:
+        raise parser.error('Please specify only one argument from {}.'.format(
+            estimator_options)) # TODO: Consider alternative behavior
+    if count_est_args == 0:
+        raise parser.error('Please specify one argument from {}.'.format(
+            estimator_options)) # TODO: Should we train by default?
 
     # Verify training arguments
     if args.num_epochs <= 0:
