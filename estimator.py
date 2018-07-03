@@ -11,25 +11,12 @@ import os
 import sys
 
 def main(args):
-    
-    # TODO: Should these variables still be capitalized?
-    MODEL_DIR = args.model_dir
-    WORKING_DIR = args.data_dir
-
-    NUM_EPOCHS = args.num_epochs
-    EPOCHS_BETWEEN_EVALS = args.epochs_between_evals
-    LEARNING_RATE = args.learning_rate
-    TRAIN_BATCH_SIZE = args.train_batch_size
-    EVAL_BATCH_SIZE = args.eval_batch_size
-
-    NUM_FOLDS = args.num_folds
-    FOLDS_TO_TRAIN_AGAINST = args.folds
 
     # Assumes default Carvana data folder structure...
     # TODO: Consider pattern matching as mechanism for selecting
     # features vs labels?
-    IMAGE_DIR = os.path.join(WORKING_DIR, 'train_hq')
-    MASK_DIR  = os.path.join(WORKING_DIR, 'train_masks')
+    IMAGE_DIR = os.path.join(args.data_dir, 'train_hq')
+    MASK_DIR  = os.path.join(args.data_dir, 'train_masks')
 
     IMAGE_FILENAMES = sorted(glob(os.path.join(IMAGE_DIR, '*.jpg')))
     MASK_FILENAMES = sorted(glob(os.path.join(MASK_DIR, '*.gif')))
@@ -44,7 +31,7 @@ def main(args):
     params = {
         'data_format': data_format,
         'num_output_classes': NUM_OUTPUT_CLASSES,
-        'learning_rate': LEARNING_RATE
+        'learning_rate': args.learning_rate
     }
 
     # Mirror the model accross all available GPUs using the mirrored distribution strategy.
@@ -57,23 +44,23 @@ def main(args):
         log_step_count_steps=5)
 
     folds = KFolds(IMAGE_FILENAMES, MASK_FILENAMES, 
-        num_folds=NUM_FOLDS, sort=False, yield_dict=False)
+        num_folds=args.num_folds, sort=False, yield_dict=False)
 
     if args.train:
         # Train separate models on each requested fold.
-        for fold_num in FOLDS_TO_TRAIN_AGAINST:
+        for fold_num in args.folds:
             (train_images, train_masks), (eval_images, eval_masks) = folds.get_fold(fold_num)
 
             # Initialize the Estimator
             image_segmentor = tf.estimator.Estimator(
-                model_dir='-'.join([MODEL_DIR, str(fold_num)]),
+                model_dir='-'.join([args.model_dir, str(fold_num)]),
                 model_fn=model_fn,
                 params=params,
                 config=config)
 
             # Train and evaluate
-            for i in range(NUM_EPOCHS // EPOCHS_BETWEEN_EVALS):
-                print('\nEntering training epoch %d.\n' % (i * EPOCHS_BETWEEN_EVALS))
+            for i in range(args.num_epochs // args.epochs_between_evals):
+                print('\nEntering training epoch %d.\n' % (i * args.epochs_between_evals))
                 image_segmentor.train(
                     # input_fn is expected to take no arguments
                     input_fn=lambda: input_fn(
@@ -81,8 +68,8 @@ def main(args):
                         train_masks,
                         training=True,
                         data_format=params['data_format'],
-                        num_repeats=EPOCHS_BETWEEN_EVALS,
-                        batch_size=TRAIN_BATCH_SIZE))
+                        num_repeats=args.epochs_between_evals,
+                        batch_size=args.train_batch_size))
 
                 results = image_segmentor.evaluate(
                     input_fn=lambda: input_fn(
@@ -90,7 +77,7 @@ def main(args):
                         eval_masks,
                         training=False,
                         data_format=params['data_format'],
-                        batch_size=EVAL_BATCH_SIZE))
+                        batch_size=args.eval_batch_size))
 
                 # TODO: Look into writing example images to a tf.summary?
                 print('\nEvaluation results:\n%s\n' % results)
