@@ -61,8 +61,6 @@ def arg_parser(args_list):
     # Verify Estimator arguments
     count_est_args = sum(map(int, [args.train, args.evaluate, args.predict]))
     estimator_options = '{--train, --evaluate, --predict}'
-    # Note: booleans work with the + operator , but implicit type conversion 
-    # may cause errors in the future.
     if count_est_args > 1:
         raise parser.error('Please specify only one argument from {}.'.format(
             estimator_options)) # TODO: Consider alternative behavior
