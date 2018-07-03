@@ -15,11 +15,8 @@ def main(args):
     # Assumes default Carvana data folder structure...
     # TODO: Consider pattern matching as mechanism for selecting
     # features vs labels?
-    IMAGE_DIR = os.path.join(args.data_dir, 'train_hq')
-    MASK_DIR  = os.path.join(args.data_dir, 'train_masks')
-
-    IMAGE_FILENAMES = sorted(glob(os.path.join(IMAGE_DIR, '*.jpg')))
-    MASK_FILENAMES = sorted(glob(os.path.join(MASK_DIR, '*.gif')))
+    IMAGE_FILENAMES = sorted(glob(os.path.join(args.image_dir, '*.jpg')))
+    MASK_FILENAMES = sorted(glob(os.path.join(args.mask_dir, '*.gif')))
 
     NUM_OUTPUT_CLASSES = 2
     # Pixels are classified as either "foreground" or "background"
