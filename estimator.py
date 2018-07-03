@@ -12,14 +12,10 @@ import sys
 
 def main(args):
 
-    # Assumes default Carvana data folder structure...
-    # TODO: Consider pattern matching as mechanism for selecting
-    # features vs labels?
-    IMAGE_FILENAMES = sorted(glob(os.path.join(args.image_dir, '*.jpg')))
-    MASK_FILENAMES = sorted(glob(os.path.join(args.mask_dir, '*.gif')))
-
-    NUM_OUTPUT_CLASSES = 2
+    NUM_OUTPUT_CLASSES = 2 # Trying to minimize "magic numbers"
     # Pixels are classified as either "foreground" or "background"
+    IMAGE_FILETYPE = '*.jpg'
+    MASK_FILETYPE = '*.gif'
 
     # Check if the system's version of TensorFlow was built with CUDA (i.e. uses a GPU)
     data_format = ('channels_first' if tf.test.is_built_with_cuda() \
@@ -40,16 +36,46 @@ def main(args):
         keep_checkpoint_max=2,
         log_step_count_steps=5)
 
-    folds = KFolds(IMAGE_FILENAMES, MASK_FILENAMES, 
-        num_folds=args.num_folds, sort=False, yield_dict=False)
+    if args.predict:
+        IMAGE_FILENAMES = glob(os.path.join(args.image_dir, IMAGE_FILETYPE))
+
+        image_segmentor = tf.estimator.Estimator(
+            model_dir=args.model_dir, # This assumes the exact path has been specified
+            model_fn=model_fn,
+            params=params,
+            config=config)
+
+        predictions = image_segmentor.predict(
+            input_fn=lambda: prediction_input_fn(
+                IMAGE_FILENAMES,
+                data_format=params['data_format']))
+
+        # model.py specifies what is returned when calling predict
+
+        for i, prediction in enumerate(predictions):
+            # Each element of the `prediction` dict corresponds to a batch
+            # of images.
+            print(i, prediction.keys()) # Placeholder computation
+            print(i, prediction['images'].shape) # Placeholder computation
+
+        return
 
     if args.train:
+        # TODO: Consider pattern matching as mechanism for selecting
+        # features vs labels?
+        IMAGE_FILENAMES = sorted(glob(os.path.join(args.image_dir, IMAGE_FILETYPE)))
+        MASK_FILENAMES = sorted(glob(os.path.join(args.mask_dir, MASK_FILETYPE)))
+
+        folds = KFolds(IMAGE_FILENAMES, MASK_FILENAMES, 
+            num_folds=args.num_folds, sort=False, yield_dict=False)
+
         # Train separate models on each requested fold.
         for fold_num in args.folds:
             (train_images, train_masks), (eval_images, eval_masks) = folds.get_fold(fold_num)
 
             # Initialize the Estimator
             image_segmentor = tf.estimator.Estimator(
+                # TODO: Remove assumptions about model_dir folder name!
                 model_dir='-'.join([args.model_dir, str(fold_num)]),
                 model_fn=model_fn,
                 params=params,
@@ -79,15 +105,13 @@ def main(args):
                 # TODO: Look into writing example images to a tf.summary?
                 print('\nEvaluation results:\n%s\n' % results)
 
+        return
+
     if args.evaluate:
         # TODO
         # How should the estimator be loaded in these subsections?
         # Which model will we use? Does it need to be specified
         # at the command line?
-        pass
-
-    if args.predict:
-        # TODO
         pass
 
 if __name__ == '__main__':
