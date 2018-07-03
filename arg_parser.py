@@ -23,8 +23,14 @@ def arg_parser(args_list):
              'the given location will be used as the base name for '\
              'each network\'s folder and a fold index will be appended')
     # TODO: Make the above help statement more clear/concise
-    parser.add_argument('--data-dir', type=str, required=True,
-        help='location of Carvana Image Masking Competition data')
+    parser.add_argument('--image-dir', type=str, required=True,
+        help='directory containing raw images. This directory must only '\
+             'contain image files. Currently, it is assumed that images '\
+             'are in the JPEG format.')
+    parser.add_argument('--mask-dir', type=str, required=True,
+        help='directory containing segmented images, i.e. masks. This '\
+             'directory must only contain image files. Currently, it is '\
+             'assumed that masks are in the GIF format.')
 
     # Cross-validation arguments
     parser.add_argument('--no-cv', action='store_true',
